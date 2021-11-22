@@ -57,7 +57,7 @@ using namespace std;
 
 typedef pcl::PointXYZI PointType;
 
-enum class SensorType { VELODYNE, OUSTER };
+enum class SensorType { VELODYNE, OUSTER, MULTISENSE };
 
 class ParamServer
 {
@@ -182,10 +182,14 @@ public:
         {
             sensor = SensorType::OUSTER;
         }
+        else if (sensorStr == "multisense")
+        {
+            sensor = SensorType::MULTISENSE;
+        }
         else
         {
             ROS_ERROR_STREAM(
-                "Invalid sensor type (must be either 'velodyne' or 'ouster'): " << sensorStr);
+                "Invalid sensor type (must be either 'velodyne', 'ouster', or 'multisense'): " << sensorStr);
             ros::shutdown();
         }
 

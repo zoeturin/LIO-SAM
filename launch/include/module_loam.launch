@@ -2,9 +2,14 @@
 
     <arg name="project" default="lio_sam"/>
     
-    <node pkg="$(arg project)" type="$(arg project)_imuPreintegration"   name="$(arg project)_imuPreintegration"    output="screen" 	respawn="true"/>
-    <node pkg="$(arg project)" type="$(arg project)_imageProjection"     name="$(arg project)_imageProjection"      output="screen"     respawn="true"/>
+    <!-- <node pkg="$(arg project)" type="$(arg project)_imuPreintegration"   name="$(arg project)_imuPreintegration"    output="screen" 	respawn="true"/> -->
+    <!-- <node pkg="$(arg project)" type="$(arg project)_imageProjection"     name="$(arg project)_imageProjection"      output="screen"     respawn="true"/> -->
     <node pkg="$(arg project)" type="$(arg project)_featureExtraction"   name="$(arg project)_featureExtraction"    output="screen"     respawn="true"/>
     <node pkg="$(arg project)" type="$(arg project)_mapOptmization"      name="$(arg project)_mapOptmization"       output="screen"     respawn="true"/>
-    
+    <!-- <node pkg="$(arg project)" type="$(arg project)_multisenseAssembler" name="$(arg project)_multisenseAssembler" output="screen" respawn="true">
+        <remap from="/laser_scan" to="/multisense/lidar_scan"/>
+    </node> -->
+    <node pkg="$(arg project)" type="$(arg project)_bypassProjection" name="$(arg project)_multisenseAssembler" output="screen" respawn="true">
+        <!-- <remap from="/laser_scan" to="/multisense/lidar_scan"/> -->
+    </node>
 </launch>

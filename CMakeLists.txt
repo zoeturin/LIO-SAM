@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   message_generation
   visualization_msgs
+  laser_geometry
 )
 
 find_package(OpenMP REQUIRED)
@@ -58,6 +59,7 @@ catkin_package(
   message_runtime
   message_generation
   visualization_msgs
+  laser_geometry
 )
 
 # include directories
@@ -100,3 +102,13 @@ target_link_libraries(${PROJECT_NAME}_mapOptmization ${catkin_LIBRARIES} ${PCL_L
 # IMU Preintegration
 add_executable(${PROJECT_NAME}_imuPreintegration src/imuPreintegration.cpp)
 target_link_libraries(${PROJECT_NAME}_imuPreintegration ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} gtsam)
+
+# Laser Scan to Point Cloud Conversion
+#TODO
+add_executable(${PROJECT_NAME}_bypassProjection src/bypassProjection.cpp)
+add_dependencies(${PROJECT_NAME}_bypassProjection ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_generate_messages_cpp)
+target_link_libraries(${PROJECT_NAME}_bypassProjection ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_executable(${PROJECT_NAME}_multisenseAssembler src/multisenseAssembler.cpp)
+add_dependencies(${PROJECT_NAME}_multisenseAssembler ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_generate_messages_cpp)
+target_link_libraries(${PROJECT_NAME}_multisenseAssembler ${catkin_LIBRARIES} ${PCL_LIBRARIES})

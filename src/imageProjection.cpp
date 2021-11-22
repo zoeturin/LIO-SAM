@@ -1,34 +1,6 @@
 #include "utility.h"
+#include "point_types.h"
 #include "lio_sam/cloud_info.h"
-
-struct VelodynePointXYZIRT
-{
-    PCL_ADD_POINT4D
-    PCL_ADD_INTENSITY;
-    uint16_t ring;
-    float time;
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-} EIGEN_ALIGN16;
-POINT_CLOUD_REGISTER_POINT_STRUCT (VelodynePointXYZIRT,
-    (float, x, x) (float, y, y) (float, z, z) (float, intensity, intensity)
-    (uint16_t, ring, ring) (float, time, time)
-)
-
-struct OusterPointXYZIRT {
-    PCL_ADD_POINT4D;
-    float intensity;
-    uint32_t t;
-    uint16_t reflectivity;
-    uint8_t ring;
-    uint16_t noise;
-    uint32_t range;
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-} EIGEN_ALIGN16;
-POINT_CLOUD_REGISTER_POINT_STRUCT(OusterPointXYZIRT,
-    (float, x, x) (float, y, y) (float, z, z) (float, intensity, intensity)
-    (uint32_t, t, t) (uint16_t, reflectivity, reflectivity)
-    (uint8_t, ring, ring) (uint16_t, noise, noise) (uint32_t, range, range)
-)
 
 // Use the Velodyne point format as a common representation
 using PointXYZIRT = VelodynePointXYZIRT;
@@ -68,6 +40,7 @@ private:
 
     pcl::PointCloud<PointXYZIRT>::Ptr laserCloudIn;
     pcl::PointCloud<OusterPointXYZIRT>::Ptr tmpOusterCloudIn;
+    pcl::PointCloud<MultisensePointXYZIRT>::Ptr tmpMultisenseCloudIn;
     pcl::PointCloud<PointType>::Ptr   fullCloud;
     pcl::PointCloud<PointType>::Ptr   extractedCloud;
 
@@ -106,6 +79,7 @@ public:
     {
         laserCloudIn.reset(new pcl::PointCloud<PointXYZIRT>());
         tmpOusterCloudIn.reset(new pcl::PointCloud<OusterPointXYZIRT>());
+        tmpMultisenseCloudIn.reset(new pcl::PointCloud<MultisensePointXYZIRT>());
         fullCloud.reset(new pcl::PointCloud<PointType>());
         extractedCloud.reset(new pcl::PointCloud<PointType>());
 
@@ -207,12 +181,31 @@ public:
         else if (sensor == SensorType::OUSTER)
         {
             // Convert to Velodyne format
-            pcl::moveFromROSMsg(currentCloudMsg, *tmpOusterCloudIn);
+            pcl::moveFromROSMsg(currentCloudMsg, *tmpOusterCloudIn); // PointCloud2 to PointCloud<T>
             laserCloudIn->points.resize(tmpOusterCloudIn->size());
             laserCloudIn->is_dense = tmpOusterCloudIn->is_dense;
             for (size_t i = 0; i < tmpOusterCloudIn->size(); i++)
             {
                 auto &src = tmpOusterCloudIn->points[i];
+                auto &dst = laserCloudIn->points[i];
+                dst.x = src.x;
+                dst.y = src.y;
+                dst.z = src.z;
+                dst.intensity = src.intensity;
+                dst.ring = src.ring;
+                dst.time = src.t * 1e-9f;
+            }
+        }
+        else if (sensor == SensorType::MULTISENSE)
+        {
+            //TODO
+            // Convert to Velodyne format
+            pcl::moveFromROSMsg(currentCloudMsg, *tmpMultisenseCloudIn);
+            laserCloudIn->points.resize(tmpMultisenseCloudIn->size());
+            laserCloudIn->is_dense = tmpMultisenseCloudIn->is_dense;
+            for (size_t i = 0; i < tmpMultisenseCloudIn->size(); i++)
+            {
+                auto &src = tmpMultisenseCloudIn->points[i];
                 auto &dst = laserCloudIn->points[i];
                 dst.x = src.x;
                 dst.y = src.y;
