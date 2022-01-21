@@ -25,7 +25,7 @@ public:
 
     pcl::PointCloud<PointType>::Ptr extractedCloud;
     pcl::PointCloud<PointType>::Ptr featureCloud;
-    // pcl::
+    pcl::PointCloud<PointType>::Ptr cornerCloud;
     // pcl::PointCloud<PointType>::Ptr surfaceCloud;
 
     pcl::VoxelGrid<PointType> downSizeFilter;
@@ -103,7 +103,7 @@ public:
         }
     }
 
-    void markOccludedPoints()
+    void markOccludedPoints() // TODO: add vertical occlusion?
     {
         int cloudSize = extractedCloud->points.size();
         // mark occluded points and parallel beam points
@@ -144,23 +144,22 @@ public:
     void detectFeatures()
     {
         //clear feature point cloud
+        cornerCloud->clear();
 
-        pcl::PointCloud<PointType>::Ptr surfaceCloudScan(new pcl::PointCloud<PointType>());
-        pcl::PointCloud<PointType>::Ptr surfaceCloudScanDS(new pcl::PointCloud<PointType>());
-
+        // iterate through number of lidar channels (ie horizontal planes)
         for (int i = 0; i < N_SCAN; i++)
         {
-            surfaceCloudScan->clear();
+            //TODO: set partition number as parameter
             // partition scan:
             for (int j = 0; j < 6; j++)
             {
-                //interval of scan (start=sp, stop=ep):
+                //interval of scan (start=sp, end=ep):
                 int sp = (cloudInfo.startRingIndex[i] * (6 - j) + cloudInfo.endRingIndex[i] * j) / 6; // = start + j*L/6
                 int ep = (cloudInfo.startRingIndex[i] * (5 - j) + cloudInfo.endRingIndex[i] * (j + 1)) / 6 - 1; // start + (j+1)*L/6
 
                 if (sp >= ep)
                     continue;
-                // sort by local curvature, high to low
+                // sort by local curvature
                 std::sort(cloudSmoothness.begin()+sp, cloudSmoothness.begin()+ep, by_value());
 
                 int largestPickedNum = 0;
@@ -168,12 +167,13 @@ public:
                 for (int k = ep; k >= sp; k--)
                 {
                     int ind = cloudSmoothness[k].ind;
+                    // having cloudNeighborPicked[ind] == 1 also encodes occlusion
                     if (cloudNeighborPicked[ind] == 0 && cloudCurvature[ind] > edgeThreshold)
                     {
                         largestPickedNum++;
                         if (largestPickedNum <= 20){
                             cloudLabel[ind] = 1;
-                            featureCloud->push_back(extractedCloud->points[ind]);
+                            cornerCloud->push_back(extractedCloud->points[ind]);
                         } else {
                             break;
                         }
@@ -196,7 +196,6 @@ public:
                     }
                 }
             }
-
             // surfaceCloudScanDS->clear();
             // downSizeFilter.setInputCloud(surfaceCloudScan);
             // downSizeFilter.filter(*surfaceCloudScanDS);
@@ -207,6 +206,7 @@ public:
     
     void extractFeatures() 
     {
+
 
     }
 

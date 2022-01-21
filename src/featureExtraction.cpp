@@ -152,23 +152,24 @@ public:
 
             for (int j = 0; j < 6; j++)
             {
-
-                int sp = (cloudInfo.startRingIndex[i] * (6 - j) + cloudInfo.endRingIndex[i] * j) / 6;
-                int ep = (cloudInfo.startRingIndex[i] * (5 - j) + cloudInfo.endRingIndex[i] * (j + 1)) / 6 - 1;
+                // interval of scan; sp = start point, ep = end point
+                int sp = (cloudInfo.startRingIndex[i] * (6 - j) + cloudInfo.endRingIndex[i] * j) / 6; // = start + j*L/6
+                int ep = (cloudInfo.startRingIndex[i] * (5 - j) + cloudInfo.endRingIndex[i] * (j + 1)) / 6 - 1; // start + (j+1)*L/6
 
                 if (sp >= ep)
                     continue;
-
+                // sort by local curvature
                 std::sort(cloudSmoothness.begin()+sp, cloudSmoothness.begin()+ep, by_value());
 
                 int largestPickedNum = 0;
+                // want to investigate high curvature points/areas to look for edges
                 for (int k = ep; k >= sp; k--)
                 {
                     int ind = cloudSmoothness[k].ind;
-                    if (cloudNeighborPicked[ind] == 0 && cloudCurvature[ind] > edgeThreshold)
+                    if (cloudNeighborPicked[ind] == 0 && cloudCurvature[ind] > edgeThreshold) 
                     {
                         largestPickedNum++;
-                        if (largestPickedNum <= 20){
+                        if (largestPickedNum <= 20){ // 20 is maximum of subregion?
                             cloudLabel[ind] = 1;
                             cornerCloud->push_back(extractedCloud->points[ind]);
                         } else {
@@ -176,9 +177,10 @@ public:
                         }
 
                         cloudNeighborPicked[ind] = 1;
+                        // make sure neighboring points to ind are not used again
                         for (int l = 1; l <= 5; l++)
                         {
-                            int columnDiff = std::abs(int(cloudInfo.pointColInd[ind + l] - cloudInfo.pointColInd[ind + l - 1]));
+                            int columnDiff = std::abs(int(cloudInfo.pointColInd[ind + l] - cloudInfo.pointColInd[ind + l - 1])); // pixel diff in range image
                             if (columnDiff > 10)
                                 break;
                             cloudNeighborPicked[ind + l] = 1;
