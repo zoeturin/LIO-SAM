@@ -196,11 +196,6 @@ public:
                     }
                 }
             }
-            // surfaceCloudScanDS->clear();
-            // downSizeFilter.setInputCloud(surfaceCloudScan);
-            // downSizeFilter.filter(*surfaceCloudScanDS);
-
-            // *surfaceCloud += *surfaceCloudScanDS;
         }
     }
     
