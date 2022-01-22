@@ -24,7 +24,7 @@ public:
     // ros::Publisher pubSurfacePoints;
 
     pcl::PointCloud<PointType>::Ptr extractedCloud;
-    pcl::PointCloud<PointType>::Ptr featureCloud;
+    pcl::PointCloud<FeatureType>::Ptr featureCloud; # TODO: add FeatureType
     pcl::PointCloud<PointType>::Ptr cornerCloud;
     // pcl::PointCloud<PointType>::Ptr surfaceCloud;
 
@@ -198,11 +198,20 @@ public:
             }
         }
     }
+
+    void computeCGF() {
+        // find nearest neighbors
+        // generate spherical histogram
+        // apply pre-generated weights and biases
+    }
     
     void extractFeatures() 
     {
-
-
+        for（int i = 0； i < cornerCloud->points.size(); i++）{
+            // clear current feature
+            computeCGF(cornerCloud->points[i], currentFeature);
+            featureCloud->push_back(currentFeature);
+        }
     }
 
     void freeCloudInfoMemory()
