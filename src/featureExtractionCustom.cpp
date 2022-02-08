@@ -24,7 +24,7 @@ public:
     // ros::Publisher pubSurfacePoints;
 
     pcl::PointCloud<PointType>::Ptr extractedCloud;
-    pcl::PointCloud<FeatureType>::Ptr featureCloud; # TODO: add FeatureType
+    pcl::PointCloud<FeatureType>::Ptr featureCloud; // TODO: add FeatureType
     pcl::PointCloud<PointType>::Ptr cornerCloud;
     // pcl::PointCloud<PointType>::Ptr surfaceCloud;
 
@@ -201,17 +201,24 @@ public:
 
     void computeCGF() {
         // find nearest neighbors
+        // int idx = pcl::KdTree< PointType >::radiusSearch(p_q, radius);
         // generate spherical histogram
         // apply pre-generated weights and biases
     }
     
     void extractFeatures() 
-    {
-        for（int i = 0； i < cornerCloud->points.size(); i++）{
-            // clear current feature
-            computeCGF(cornerCloud->points[i], currentFeature);
-            featureCloud->push_back(currentFeature);
-        }
+    {   
+        pcl::CGF<pcl::PointType> cgf;
+        cgf.setInputCloud(cornerCloud);
+        cgf.setSearchSurface(extractedCloud);
+
+        // Create an empty kdtree representation, and pass it to the feature object.
+        // Its content will be filled inside the object, based on the given surface dataset.
+        pcl::search::KdTree<pcl::PointType>::Ptr tree (new pcl::search::KdTree<pcl::PointType> ());
+        cgf.setSearchMethod (tree);
+        cgf.setRadiusSearch (0.03); 
+        cgf.compute(*featureCloud);
+        
     }
 
     void freeCloudInfoMemory()
