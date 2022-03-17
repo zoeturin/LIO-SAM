@@ -159,3 +159,14 @@ ekf_gps:
                                0,    0,    0,    0,    0,    0,    0,     0,     0,     0,    0,    0,    0.01, 0,      0,
                                0,    0,    0,    0,    0,    0,    0,     0,     0,     0,    0,    0,    0,    0.01,   0,
                                0,    0,    0,    0,    0,    0,    0,     0,     0,     0,    0,    0,    0,    0,      0.015]
+
+# Custom Features:
+cgf: 
+  az_div: 4
+  el_div : 2
+  rad_div : 2
+  rmin : .1
+  rmax : 1.2
+  radius_RF : .25
+  file: "config/cgf_compression.csv"
+

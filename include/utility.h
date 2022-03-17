@@ -150,6 +150,15 @@ public:
     float globalMapVisualizationPoseDensity;
     float globalMapVisualizationLeafSize;
 
+    // cgf feature params
+    int az_div;
+    int el_div;
+    int rad_div;
+    float rmin;
+    float rmax;
+    float radius_RF;
+    string compression_filename;
+
     ParamServer()
     {
         nh.param<std::string>("/robot_id", robot_id, "roboat");
@@ -244,6 +253,14 @@ public:
         nh.param<float>("lio_sam/globalMapVisualizationSearchRadius", globalMapVisualizationSearchRadius, 1e3);
         nh.param<float>("lio_sam/globalMapVisualizationPoseDensity", globalMapVisualizationPoseDensity, 10.0);
         nh.param<float>("lio_sam/globalMapVisualizationLeafSize", globalMapVisualizationLeafSize, 1.0);
+
+        nh.param<int>("cgf/az_div", az_div); // LATER: add defaults?
+        nh.param<int>("cgf/el_div", el_div);
+        nh.param<int>("cgf/rad_div", rad_div);
+        nh.param<float>("cgf/rmin", rmin);
+        nh.param<float>("cgf/rmax", rmax);
+        nh.param<float>("cgf/radius_RF", radius_RF);
+        nh.param<std::string>("cgf/file", compression_filename);
 
         usleep(100);
     }

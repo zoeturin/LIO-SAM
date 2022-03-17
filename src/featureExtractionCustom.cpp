@@ -38,6 +38,8 @@ public:
     int *cloudNeighborPicked;
     int *cloudLabel;
 
+    pcl::features::CGFEstimation<PointType, FeatureType> cgf_estimation;
+
     FeatureExtraction()
     {
         subLaserCloudInfo = nh.subscribe<lio_sam::cloud_info>("lio_sam/deskew/cloud_info", 1, &FeatureExtraction::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
@@ -62,6 +64,9 @@ public:
         cloudCurvature = new float[N_SCAN*Horizon_SCAN];
         cloudNeighborPicked = new int[N_SCAN*Horizon_SCAN];
         cloudLabel = new int[N_SCAN*Horizon_SCAN];
+
+        pcl::features::CGFEstimation<PointType, FeatureType> cgf_estimation (az_div, el_div, rad_div, rmin, rmax, radius_RF); // LATER: make flexible for other feature types
+        cgf_estimation.setCompression(compression_filename);
     }
 
     void laserCloudInfoHandler(const lio_sam::cloud_infoConstPtr& msgIn)
@@ -198,27 +203,12 @@ public:
             }
         }
     }
-
-    void computeCGF() {
-        // find nearest neighbors
-        // int idx = pcl::KdTree< PointType >::radiusSearch(p_q, radius);
-        // generate spherical histogram
-        // apply pre-generated weights and biases
-    }
     
     void extractFeatures() 
-    {   
-        pcl::CGF<pcl::PointType> cgf;
-        cgf.setInputCloud(cornerCloud);
-        cgf.setSearchSurface(extractedCloud);
-
-        // Create an empty kdtree representation, and pass it to the feature object.
-        // Its content will be filled inside the object, based on the given surface dataset.
-        pcl::search::KdTree<pcl::PointType>::Ptr tree (new pcl::search::KdTree<pcl::PointType> ());
-        cgf.setSearchMethod (tree);
-        cgf.setRadiusSearch (0.03); 
-        cgf.compute(*featureCloud);
-        
+    {      
+        cgf_estimation.setInputCloud(cornerCloud);
+        cgf_estimation.setSearchSurface(extractedCloud);
+        cgf_estimation.compute(*featureCloud);
     }
 
     void freeCloudInfoMemory()
