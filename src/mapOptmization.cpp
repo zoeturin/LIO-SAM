@@ -334,17 +334,6 @@ public:
         return thisPose6D;
     }
 
-    
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -484,12 +473,6 @@ public:
         downSizeFilterGlobalMapKeyFrames.filter(*globalMapKeyFramesDS);
         publishCloud(&pubLaserCloudSurround, globalMapKeyFramesDS, timeLaserInfoStamp, odometryFrame);
     }
-
-
-
-
-
-
 
 
 
@@ -773,12 +756,7 @@ public:
 
 
 
-
-
-    
-
-
-
+    //modifies transformTobeMapped
     void updateInitialGuess()
     {
         // save current transformation before any processing
@@ -972,29 +950,32 @@ public:
         updatePointAssociateToMap();
 
         #pragma omp parallel for num_threads(numberOfCores)
-        for (int i = 0; i < laserCloudCornerLastDSNum; i++)
+        for (int i = 0; i < laserCloudCornerLastDSNum; i++) // iterate through corner feature points in newest scan
         {
             PointType pointOri, pointSel, coeff;
             std::vector<int> pointSearchInd;
             std::vector<float> pointSearchSqDis;
 
-            pointOri = laserCloudCornerLastDS->points[i];
+            pointOri = laserCloudCornerLastDS->points[i]; // get point in question from newest scan
             pointAssociateToMap(&pointOri, &pointSel);
-            kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
+            kdtreeCornerFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis); // LATER: set num neighbors as param
 
-            cv::Mat matA1(3, 3, CV_32F, cv::Scalar::all(0));
-            cv::Mat matD1(1, 3, CV_32F, cv::Scalar::all(0));
-            cv::Mat matV1(3, 3, CV_32F, cv::Scalar::all(0));
+            cv::Mat matA1(3, 3, CV_32F, cv::Scalar::all(0)); // covariance of neighboring corner points
+            cv::Mat matD1(1, 3, CV_32F, cv::Scalar::all(0)); // eigenvalues
+            cv::Mat matV1(3, 3, CV_32F, cv::Scalar::all(0)); // eigenvectors
                     
-            if (pointSearchSqDis[4] < 1.0) {
+            if (pointSearchSqDis[4] < 1.0) { //threshold only use if all w/in dist 1.0, ?? change for N dims?
+                // average location of corner points
                 float cx = 0, cy = 0, cz = 0;
                 for (int j = 0; j < 5; j++) {
-                    cx += laserCloudCornerFromMapDS->points[pointSearchInd[j]].x;
+                    cx += laserCloudCornerFromMapDS->points[pointSearchInd[j]].x; 
                     cy += laserCloudCornerFromMapDS->points[pointSearchInd[j]].y;
                     cz += laserCloudCornerFromMapDS->points[pointSearchInd[j]].z;
                 }
                 cx /= 5; cy /= 5;  cz /= 5;
 
+                // demean these corner points 
+                // covariance //CHECK LOAM paper
                 float a11 = 0, a12 = 0, a13 = 0, a22 = 0, a23 = 0, a33 = 0;
                 for (int j = 0; j < 5; j++) {
                     float ax = laserCloudCornerFromMapDS->points[pointSearchInd[j]].x - cx;
@@ -1011,9 +992,9 @@ public:
                 matA1.at<float>(1, 0) = a12; matA1.at<float>(1, 1) = a22; matA1.at<float>(1, 2) = a23;
                 matA1.at<float>(2, 0) = a13; matA1.at<float>(2, 1) = a23; matA1.at<float>(2, 2) = a33;
 
-                cv::eigen(matA1, matD1, matV1);
+                cv::eigen(matA1, matD1, matV1); // descending order
 
-                if (matD1.at<float>(0, 0) > 3 * matD1.at<float>(0, 1)) {
+                if (matD1.at<float>(0, 0) > 3 * matD1.at<float>(0, 1)) { // if largest eval > 3 * next eval
 
                     float x0 = pointSel.x;
                     float y0 = pointSel.y;
