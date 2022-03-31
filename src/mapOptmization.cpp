@@ -1006,10 +1006,11 @@ public:
                     float y2 = cy - 0.1 * matV1.at<float>(0, 1);
                     float z2 = cz - 0.1 * matV1.at<float>(0, 2);
 
+                    // numerator of distance formula: |(p0 - p1) x (p0 - p2)|
                     float a012 = sqrt(((x0 - x1)*(y0 - y2) - (x0 - x2)*(y0 - y1)) * ((x0 - x1)*(y0 - y2) - (x0 - x2)*(y0 - y1)) 
                                     + ((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) * ((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) 
                                     + ((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1)) * ((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1)));
-
+                    // denominator of distance formula: | p1 - p2 |
                     float l12 = sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
 
                     float la = ((y1 - y2)*((x0 - x1)*(y0 - y2) - (x0 - x2)*(y0 - y1)) 
@@ -1021,7 +1022,7 @@ public:
                     float lc = -((x1 - x2)*((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) 
                                + (y1 - y2)*((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1))) / a012 / l12;
 
-                    float ld2 = a012 / l12;
+                    float ld2 = a012 / l12; // distance from PointSel to edge in map (laserCloudCornerFromMapDS)
 
                     float s = 1 - 0.9 * fabs(ld2);
 
@@ -1328,6 +1329,7 @@ public:
         return value;
     }
 
+
     bool saveFrame()
     {
         if (cloudKeyPoses3D->points.empty())
@@ -1625,7 +1627,7 @@ public:
         static bool lastIncreOdomPubFlag = false;
         static nav_msgs::Odometry laserOdomIncremental; // incremental odometry msg
         static Eigen::Affine3f increOdomAffine; // incremental odometry in affine
-        if (lastIncreOdomPubFlag == false)
+        if (lastIncreOdomPubFlag == false) // only on first call
         {
             lastIncreOdomPubFlag = true;
             laserOdomIncremental = laserOdometryROS;
