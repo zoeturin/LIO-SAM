@@ -38,7 +38,9 @@ public:
     int *cloudNeighborPicked;
     int *cloudLabel;
 
-    pcl::features::CGFEstimation<PointType, FeatureType> cgf_estimation;
+    typedef pcl::CGFSignature16 FeatureType; // TEMP
+
+    pcl::CGFEstimation<PointType, FeatureType> cgf_estimation; // TODO: FeatureType
 
     FeatureExtraction()
     {
@@ -65,7 +67,7 @@ public:
         cloudNeighborPicked = new int[N_SCAN*Horizon_SCAN];
         cloudLabel = new int[N_SCAN*Horizon_SCAN];
 
-        pcl::features::CGFEstimation<PointType, FeatureType> cgf_estimation (az_div, el_div, rad_div, rmin, rmax, radius_RF); // LATER: make flexible for other feature types
+        pcl::CGFEstimation<PointType, FeatureType> cgf_estimation (az_div, el_div, rad_div, rmin, rmax, radius_RF); // LATER: make flexible for other feature types
         cgf_estimation.setCompression(compression_filename);
     }
 
@@ -146,7 +148,7 @@ public:
         }
     }
 
-    void detectFeatures()
+    void detectFeatures() // TODO: modify for custom features
     {
         //clear feature point cloud
         cornerCloud->clear();
