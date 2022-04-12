@@ -118,6 +118,9 @@ public:
     int edgeFeatureMinValidNum;
     int surfFeatureMinValidNum;
 
+    // custom features
+    int featureMinValidNum;
+
     // voxel filter paprams
     float odometrySurfLeafSize;
     float mappingCornerLeafSize;

@@ -1,5 +1,6 @@
 #include "utility.h"
-#include "lio_sam/cloud_info.h"
+#include "lio_sam/cloud_info_custom.h"
+// #include "lio_sam/cloud_info.h"
 #include "lio_sam/save_map.h"
 
 #include <gtsam/geometry/Rot3.h>
@@ -80,48 +81,63 @@ public:
     ros::ServiceServer srvSaveMap;
 
     std::deque<nav_msgs::Odometry> gpsQueue;
-    lio_sam::cloud_info cloudInfo;
+    lio_sam::cloud_info_custom cloudInfo;
 
-    vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
-    vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
+    vector<pcl::PointCloud<PointType>::Ptr> featureCloudKeyFrames;
+    // vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
+    // vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
     
     pcl::PointCloud<PointType>::Ptr cloudKeyPoses3D;
     pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D;
     pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
     pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
 
-    pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner feature set from odoOptimization
-    pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf feature set from odoOptimization
-    pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner featuer set from odoOptimization
-    pcl::PointCloud<PointType>::Ptr laserCloudSurfLastDS; // downsampled surf featuer set from odoOptimization
+    pcl::PointCloud<PointType>::Ptr laserCloudFeatureLast; // feature cloud from most recent scan
+    // pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner cloud from most recent scan
+    // pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf cloud from most recent scan
+    pcl::PointCloud<PointType>::Ptr laserCloudFeatureLastDS; // downsampled corner cloud from most recent scan
+    // pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner cloud from most recent scan
+    // pcl::PointCloud<PointType>::Ptr laserCloudSurfLastDS; // downsampled surf cloud from most recent scan
 
     pcl::PointCloud<PointType>::Ptr laserCloudOri;
     pcl::PointCloud<PointType>::Ptr coeffSel;
 
-    std::vector<PointType> laserCloudOriCornerVec; // corner point holder for parallel computation
-    std::vector<PointType> coeffSelCornerVec;
-    std::vector<bool> laserCloudOriCornerFlag;
-    std::vector<PointType> laserCloudOriSurfVec; // surf point holder for parallel computation
-    std::vector<PointType> coeffSelSurfVec;
-    std::vector<bool> laserCloudOriSurfFlag;
+    std::vector<Eigen::Vector3f> featurePointNewVec[i]; 
+    std::vector<Eigen::Vector3f> featurePointMapVec[i];
+    Eigen::Vector3f featurePointNewMean;
+    Eigen::Vector3f featurePointMapMean;
+    float rnDistsMax;
+    std::vector<float> rnDistsVec;
+    
+    // std::vector<PointType> laserCloudOriCornerVec; // corner point holder for parallel computation
+    // std::vector<PointType> coeffSelCornerVec;
+    // std::vector<bool> laserCloudOriCornerFlag;
+    // std::vector<PointType> laserCloudOriSurfVec; // surf point holder for parallel computation
+    // std::vector<PointType> coeffSelSurfVec;
+    // std::vector<bool> laserCloudOriSurfFlag;
 
-    map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
-    pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
-    pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMap;
-    pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
-    pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
+    map<int, PointCloud<FeatureType>> laserCloudMapContainer;
+    // map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
+    pcl::PointCloud<PointType>::Ptr laserCloudFeatureFromMap;
+    // pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
+    // pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMap;
+    pcl::PointCloud<PointType>::Ptr laserCloudFeatureFromMapDS;
+    // pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
+    // pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
 
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
+    pcl::KdTreeFLANN<PointType>::Ptr kdtreeFeatureFromMap;
+    // pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
+    // pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
 
     pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses;
     pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses;
 
-    pcl::VoxelGrid<PointType> downSizeFilterCorner;
-    pcl::VoxelGrid<PointType> downSizeFilterSurf;
+    pcl::VoxelGrid<PointType> downSizeFilterFeature;
+    // pcl::VoxelGrid<PointType> downSizeFilterCorner;
+    // pcl::VoxelGrid<PointType> downSizeFilterSurf;
     pcl::VoxelGrid<PointType> downSizeFilterICP;
     pcl::VoxelGrid<PointType> downSizeFilterSurroundingKeyPoses; // for surrounding key poses of scan-to-map optimization
-    
+
     ros::Time timeLaserInfoStamp;
     double timeLaserInfoCur;
 
@@ -133,10 +149,12 @@ public:
     bool isDegenerate = false;
     cv::Mat matP;
 
-    int laserCloudCornerFromMapDSNum = 0;
-    int laserCloudSurfFromMapDSNum = 0;
-    int laserCloudCornerLastDSNum = 0;
-    int laserCloudSurfLastDSNum = 0;
+    int laserCloudFeatureFromMapDSNum = 0;
+    // int laserCloudCornerFromMapDSNum = 0;
+    // int laserCloudSurfFromMapDSNum = 0;
+    int laserCloudFeatureLastDSNum = 0;
+    // int laserCloudCornerLastDSNum = 0;
+    // int laserCloudSurfLastDSNum = 0;
 
     bool aLoopIsClosed = false;
     map<int, int> loopIndexContainer; // from new to old
@@ -165,7 +183,7 @@ public:
         pubLaserOdometryIncremental = nh.advertise<nav_msgs::Odometry> ("lio_sam/mapping/odometry_incremental", 1);
         pubPath                     = nh.advertise<nav_msgs::Path>("lio_sam/mapping/path", 1);
 
-        subCloud = nh.subscribe<lio_sam::cloud_info>("lio_sam/feature/cloud_info", 1, &mapOptimization::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
+        subCloud = nh.subscribe<lio_sam::cloud_info_custom>("lio_sam/feature/cloud_info", 1, &mapOptimization::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
         subGPS   = nh.subscribe<nav_msgs::Odometry> (gpsTopic, 200, &mapOptimization::gpsHandler, this, ros::TransportHints().tcpNoDelay());
         subLoop  = nh.subscribe<std_msgs::Float64MultiArray>("lio_loop/loop_closure_detection", 1, &mapOptimization::loopInfoHandler, this, ros::TransportHints().tcpNoDelay());
 
@@ -230,7 +248,7 @@ public:
         matP = cv::Mat(6, 6, CV_32F, cv::Scalar::all(0));
     }
 
-    void laserCloudInfoHandler(const lio_sam::cloud_infoConstPtr& msgIn)
+    void laserCloudInfoHandler(const lio_sam::cloud_info_customConstPtr& msgIn)
     {
         // extract time stamp
         timeLaserInfoStamp = msgIn->header.stamp;
@@ -238,8 +256,9 @@ public:
 
         // extract info and feature cloud
         cloudInfo = *msgIn;
-        pcl::fromROSMsg(msgIn->cloud_corner,  *laserCloudCornerLast);
-        pcl::fromROSMsg(msgIn->cloud_surface, *laserCloudSurfLast);
+        pcl::fromROSMsg(msgIn->cloud_feature,  *laserCloudFeatureLast);
+        // pcl::fromROSMsg(msgIn->cloud_corner,  *laserCloudCornerLast);
+        // pcl::fromROSMsg(msgIn->cloud_surface, *laserCloudSurfLast);
 
         std::lock_guard<std::mutex> lock(mtx);
 
@@ -755,8 +774,12 @@ public:
 
 
 
+    /*! \brief Brief description.
+    *         Brief description continued.
+    *
+    *  Detailed description starts here.
+    */
 
-    //modifies transformTobeMapped
     void updateInitialGuess()
     {
         // save current transformation before any processing
@@ -818,6 +841,12 @@ public:
         }
     }
 
+    /*! \brief Brief description.
+    *         Brief description continued.
+    *
+    *  Detailed description starts here.
+    */
+
     void extractForLoopClosure()
     {
         pcl::PointCloud<PointType>::Ptr cloudToExtract(new pcl::PointCloud<PointType>());
@@ -832,6 +861,12 @@ public:
 
         extractCloud(cloudToExtract);
     }
+
+    /*! \brief Brief description.
+    *         Brief description continued.
+    *
+    *  Detailed description starts here.
+    */
 
     void extractNearby()
     {
@@ -870,7 +905,47 @@ public:
         extractCloud(surroundingKeyPosesDS);
     }
 
+    /*! \brief Brief description.
+    *         Brief description continued.
+    *
+    *  Detailed description starts here.
+    */
     void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract)
+    {
+        // cloudToExtract from cloudKeyPoses3D
+        // intensity field used as index (in what?)
+
+        laserCloudFeatureFromMap->clear();
+
+        for (int i = 0; i < (int)cloudToExtract->size(); ++i)
+        {
+            if (pointDistance(cloudToExtract->points[i], cloudKeyPoses3D->back()) > surroundingKeyframeSearchRadius)
+                continue;
+
+            int thisKeyInd = (int)cloudToExtract->points[i].intensity; 
+            if (laserCloudMapContainer.find(thisKeyInd) != laserCloudMapContainer.end()) 
+            {
+                // transformed cloud available
+                *laserCloudFeatureFromMap += laserCloudMapContainer[thisKeyInd];
+            } else {
+                // transformed cloud not available
+                pcl::PointCloud<PointType> laserCloudFeatureTemp = *transformPointCloud(featureCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
+                *laserCloudFeatureFromMap += laserCloudFeatureTemp;
+                laserCloudMapContainer[thisKeyInd] = laserCloudFeatureTemp; // CHECK: if laserCloudMapContainer actually important now
+            }
+            
+        }
+        // Downsample the surrounding corner key frames (or map)
+        downSizeFilterFeature.setInputCloud(laserCloudFeatureFromMap);
+        downSizeFilterFeature.filter(*laserCloudFeatureFromMapDS);
+        laserCloudFeatureFromMapDSNum = laserCloudFeatureFromMapDS->size();
+
+        // clear map cache if too large
+        if (laserCloudMapContainer.size() > 1000)
+            laserCloudMapContainer.clear();
+    }
+
+    /*void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract)
     {
         // fuse the map
         laserCloudCornerFromMap->clear();
@@ -909,7 +984,7 @@ public:
         // clear map cache if too large
         if (laserCloudMapContainer.size() > 1000)
             laserCloudMapContainer.clear();
-    }
+    }*/
 
     void extractSurroundingKeyFrames()
     {
@@ -929,6 +1004,15 @@ public:
     void downsampleCurrentScan()
     {
         // Downsample cloud from current scan
+        laserCloudFeatureLastDS->clear();
+        downSizeFilterFeature.setInputCloud(laserCloudFeatureLast);
+        downSizeFilterFeature.filter(*laserCloudFeatureLastDS);
+        laserCloudFeatureLastDSNum = laserCloudFeatureLastDS->size();
+    }
+
+    /*void downsampleCurrentScan()
+    {
+        // Downsample cloud from current scan
         laserCloudCornerLastDS->clear();
         downSizeFilterCorner.setInputCloud(laserCloudCornerLast);
         downSizeFilterCorner.filter(*laserCloudCornerLastDS);
@@ -938,11 +1022,53 @@ public:
         downSizeFilterSurf.setInputCloud(laserCloudSurfLast);
         downSizeFilterSurf.filter(*laserCloudSurfLastDS);
         laserCloudSurfLastDSNum = laserCloudSurfLastDS->size();
-    }
+    }*/
 
     void updatePointAssociateToMap()
     {
         transPointAssociateToMap = trans2Affine3f(transformTobeMapped);
+    }
+
+    PointType featurePoint(const FeatureType &feature)
+    {
+        return PointType(feature.x, feature.y, feature.z);
+    }
+
+    void featureOptimization()
+    {
+        updatePointAssociateToMap(); // ?? does this need to run every time this fn is called?
+
+        #pragma omp parallel for num_threads(numberOfCores)
+        for (int i = 0; i < laserCloudFeatureLastDSNum; i++) // iterate through corner feature points in newest scan
+        {
+            PointType featurePointNew, featurePointNewTF, featurePointMap, coeff;
+            FeatureType featureNew, featureMap; // TODO: FeatureType
+            std::vector<int> mapFeatureIndex;
+            std::vector<float> featureSqDistRn;
+            float mapFeatureDistR3;
+
+            featureNew = laserCloudFeatureLastDS->points[i]; // get point in question from newest scan
+            featurePointNew = featurePoint(featureNew); // get associated point (x,y,z)
+            pointAssociateToMap(&featurePointNew, &featurePointNewTF); // tf into map coordinates
+
+            kdtreeFeatureFromMap->nearestKSearch(featureNew, 1, mapFeatureIndex, featureSqDistRn); // TODO: RN search
+            featureMap = laserCloudFeatureFromMapDS->points[mapFeatureIndex];
+            featurePointMap = featurePoint(featureMap);
+            featureDistR3 = euclideanDistance(featurePointNewTF, featurePointMap);
+                    
+            if (featureDistR3 < 1.0) { // TODO: add threshold R3 distance as param
+                //TODO also threshold Rn distance?
+                // CHECK threadsafe?
+                // ?? convert 4 elem to 3?
+                featurePointNewVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointNew.data);
+                featurePointMapVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointMap.data);
+                featurePointNewMean += featurePointNewVec[i] ;
+                featurePointMapMean += featurePointMapVec[i]; 
+
+                rnDistsVec[i] = sqrt(featureSqDistRn); 
+                if (rnDistsVec[i] > rnDistsMax) rnDistsMax = rnDistsVec[i] ;
+            }
+        }
     }
 
     void cornerOptimization()
@@ -1133,6 +1259,64 @@ public:
         std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
     }
 
+    bool optimization(int iterCount)
+    {
+        int featurePairNum = featurePointNewVec.size();
+        if (featurePairNum < 50) { // ?? what should threshold be?
+            return false; // ?? need different escape condition? ie keep from reiterating w/o change?
+        }
+
+        // Initialization
+        Eigen::Matrix3f cov, rotation;
+        cov.setZero();
+        float roll, pitch, yaw;
+        Eigen::Vector3f newTemp, mapTemp, translation;
+
+        // Calculate means of both point clouds
+        featurePointNewMean /= featurePairNum; //?? can you do arithmetic on points like this?
+        featurePointMapMean /= featurePairNum;
+
+        for (int i = 0; i < featurePairNum; i++) {
+            // demean points
+            newTemp = featurePointNewVec[i] - featurePointNewMean;
+            mapTemp = featurePointMapVec[i] - featurePointMapMean;
+            // weighted covariance
+            float weight = rnDistsMax - rnDistsVec[i];
+            cov += weight * mapTemp * newTemp.transpose();
+        }
+
+        cov /= featurePairNum;
+
+        // TODO: see if need to check whether degenerate
+        
+        // Calculate transformation from covariance and means
+        Eigen::JacobiSVD<Matrix3f> svd(cov);
+        rotation = svd.matrixU * svd.matrixV.transpose(); // CHECK: that svd returns V not V transpose
+        getEulerAngles(rotation, roll, pitch, yaw);
+        translation = featurePointMapMean.array() - (rotation * featurePointNewVec).array();
+
+        transformTobeMapped[0] += roll; // CHECK: transformation element order
+        transformTobeMapped[1] += pitch;
+        transformTobeMapped[2] += yaw;
+        transformTobeMapped[3] += translation[0];
+        transformTobeMapped[4] += translation[1];
+        transformTobeMapped[5] += translation[2];
+
+        float deltaR = sqrt(
+                            pow(pcl::rad2deg(roll), 2) +
+                            pow(pcl::rad2deg(pitch), 2) +
+                            pow(pcl::rad2deg(yaw), 2));
+        float deltaT = sqrt(
+                            pow(translation[0] * 100, 2) +
+                            pow(translation[1] * 100, 2) +
+                            pow(translation[2] * 100, 2));
+
+        if (deltaR < 0.05 && deltaT < 0.05) {
+            return true; // converged // LATER: make correspond to voxel size param
+        }
+        return false; // keep optimizing
+    }
+
     bool LMOptimization(int iterCount)
     {
         // This optimization is from the original loam_velodyne by Ji Zhang, need to cope with coordinate transformation
@@ -1263,6 +1447,41 @@ public:
         if (cloudKeyPoses3D->points.empty())
             return;
 
+        if (laserCloudFeatureLastDSNum > featureMinValidNum) // TODO set min valid num param
+        {
+            kdtreeFeatureFromMap->setInputCloud(laserCloudFeatureFromMapDS);
+
+            for (int iterCount = 0; iterCount < 30; iterCount++) // LATER: figure out itercount, maybe set as param
+            {
+                // laserCloudOri->clear();
+
+                featurePointNewVec.clear();
+                featurePointMapVec.clear();
+                featurePointNewMean.setZero();
+                featurePointMapMean.setZero();
+
+                rnDistsVec.empty();
+                rnDistsMax = 0;
+
+                featureOptimization();
+
+                // combineOptimizationCoeffs();
+
+                if (optimization(iterCount) == true)
+                    break;              
+            }
+
+            transformUpdate();
+        } else {
+            ROS_WARN("Not enough features! Only %d features available.", laserCloudFeatureLastDSNum);
+        }
+    }
+
+    /*void scan2MapOptimization()
+    {
+        if (cloudKeyPoses3D->points.empty())
+            return;
+
         if (laserCloudCornerLastDSNum > edgeFeatureMinValidNum && laserCloudSurfLastDSNum > surfFeatureMinValidNum)
         {
             kdtreeCornerFromMap->setInputCloud(laserCloudCornerFromMapDS);
@@ -1287,6 +1506,7 @@ public:
             ROS_WARN("Not enough features! Only %d edge and %d planar features available.", laserCloudCornerLastDSNum, laserCloudSurfLastDSNum);
         }
     }
+    */
 
     void transformUpdate()
     {
