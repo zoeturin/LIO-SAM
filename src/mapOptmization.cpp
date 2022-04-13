@@ -1112,7 +1112,7 @@ public:
                 cx /= 5; cy /= 5;  cz /= 5;
 
                 // demean these corner points 
-                // covariance //CHECK LOAM paper
+                // covariance 
                 float a11 = 0, a12 = 0, a13 = 0, a22 = 0, a23 = 0, a33 = 0;
                 for (int j = 0; j < 5; j++) {
                     float ax = laserCloudCornerFromMapDS->points[pointSearchInd[j]].x - cx;
@@ -1148,27 +1148,27 @@ public:
                                     + ((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) * ((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) 
                                     + ((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1)) * ((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1)));
                     // denominator of distance formula: | p1 - p2 |
-                    float l12 = sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
+                    float l12 = sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2)); // ?? shouldn't this always = .2?
 
                     float la = ((y1 - y2)*((x0 - x1)*(y0 - y2) - (x0 - x2)*(y0 - y1)) 
-                              + (z1 - z2)*((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1))) / a012 / l12;
+                              + (z1 - z2)*((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1))) / a012 / l12; // derivative of dist wrt x0
 
                     float lb = -((x1 - x2)*((x0 - x1)*(y0 - y2) - (x0 - x2)*(y0 - y1)) 
-                               - (z1 - z2)*((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1))) / a012 / l12;
+                               - (z1 - z2)*((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1))) / a012 / l12;  // derivative of dist wrt y0
 
                     float lc = -((x1 - x2)*((x0 - x1)*(z0 - z2) - (x0 - x2)*(z0 - z1)) 
-                               + (y1 - y2)*((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1))) / a012 / l12;
+                               + (y1 - y2)*((y0 - y1)*(z0 - z2) - (y0 - y2)*(z0 - z1))) / a012 / l12;  // derivative of dist wrt z0
 
                     float ld2 = a012 / l12; // distance from PointSel to edge in map (laserCloudCornerFromMapDS)
 
-                    float s = 1 - 0.9 * fabs(ld2);
+                    float s = 1 - 0.9 * fabs(ld2); // why is abs needed here?
 
-                    coeff.x = s * la;
+                    coeff.x = s * la; //?? not sure I understand s here
                     coeff.y = s * lb;
                     coeff.z = s * lc;
                     coeff.intensity = s * ld2;
 
-                    if (s > 0.1) {
+                    if (s > 0.1) { //?? only include in optimization if dist < 1 ? 
                         laserCloudOriCornerVec[i] = pointOri;
                         coeffSelCornerVec[i] = coeff;
                         laserCloudOriCornerFlag[i] = true;
@@ -1367,10 +1367,11 @@ public:
             return false;
         }
 
-        cv::Mat matA(laserCloudSelNum, 6, CV_32F, cv::Scalar::all(0));
+        // solve Ax = B, ie (J'*J + lambda*I) * delta = J' * (y - f(beta))
+        cv::Mat matA(laserCloudSelNum, 6, CV_32F, cv::Scalar::all(0)); // jacobian, J
         cv::Mat matAt(6, laserCloudSelNum, CV_32F, cv::Scalar::all(0));
         cv::Mat matAtA(6, 6, CV_32F, cv::Scalar::all(0));
-        cv::Mat matB(laserCloudSelNum, 1, CV_32F, cv::Scalar::all(0));
+        cv::Mat matB(laserCloudSelNum, 1, CV_32F, cv::Scalar::all(0)); // d - f(beta)
         cv::Mat matAtB(6, 1, CV_32F, cv::Scalar::all(0));
         cv::Mat matX(6, 1, CV_32F, cv::Scalar::all(0));
 
@@ -1410,8 +1411,8 @@ public:
         }
 
         cv::transpose(matA, matAt);
-        matAtA = matAt * matA;
-        matAtB = matAt * matB;
+        matAtA = matAt * matA; // J' * J
+        matAtB = matAt * matB; 
         cv::solve(matAtA, matAtB, matX, cv::DECOMP_QR);
 
         if (iterCount == 0) {
