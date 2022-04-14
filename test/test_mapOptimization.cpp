@@ -23,12 +23,13 @@ test_featureOptimization()
 
     pcl::KdTreeFLANN<PointType>::Ptr kdtree1;
     kdtree1 -> setInputCloud(cloud1);
+    float tf[6] = {0, 0, 0, 0, 0, 0}; 
 
     // set mapOptimization members required for featureOptimization()
     opt.kdtreeFeatureFromMap = kdtree1;
     opt.laserCloudFeatureLastDS = cloud2;
     opt.laserCloudFeatureLastDSNum = cloud2 -> size();
-    
+    opt.transformTobeMapped = tf;
     
     return 0;
 }
