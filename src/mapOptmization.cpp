@@ -92,10 +92,10 @@ public:
     pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D;
     pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D;
 
-    pcl::PointCloud<PointType>::Ptr laserCloudFeatureLast; // feature cloud from most recent scan
+    pcl::PointCloud<FeatureType>::Ptr laserCloudFeatureLast; // feature cloud from most recent scan
     // pcl::PointCloud<PointType>::Ptr laserCloudCornerLast; // corner cloud from most recent scan
     // pcl::PointCloud<PointType>::Ptr laserCloudSurfLast; // surf cloud from most recent scan
-    pcl::PointCloud<PointType>::Ptr laserCloudFeatureLastDS; // downsampled corner cloud from most recent scan
+    pcl::PointCloud<FeatureType>::Ptr laserCloudFeatureLastDS; // downsampled corner cloud from most recent scan
     // pcl::PointCloud<PointType>::Ptr laserCloudCornerLastDS; // downsampled corner cloud from most recent scan
     // pcl::PointCloud<PointType>::Ptr laserCloudSurfLastDS; // downsampled surf cloud from most recent scan
 
@@ -1060,9 +1060,9 @@ public:
                 //TODO also threshold Rn distance?
                 // CHECK threadsafe?
                 // ?? convert 4 elem to 3?
-                featurePointNewVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointNew.data);
+                featurePointNewVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointNew.data); //CHECK: TF instead?
                 featurePointMapVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointMap.data);
-                featurePointNewMean += featurePointNewVec[i] ;
+                featurePointNewMean += featurePointNewVec[i];
                 featurePointMapMean += featurePointMapVec[i]; 
 
                 rnDistsVec[i] = sqrt(featureSqDistRn); 
