@@ -496,8 +496,6 @@ public:
 
 
 
-
-
     void loopClosureThread()
     {
         if (loopClosureEnableFlag == false)
@@ -776,7 +774,7 @@ public:
 
     /*! \brief Brief description.
     *         Brief description continued.
-    *
+    *  
     *  Detailed description starts here.
     */
 
@@ -905,11 +903,13 @@ public:
         extractCloud(surroundingKeyPosesDS);
     }
 
-    /*! \brief Brief description.
-    *         Brief description continued.
+    /*! \brief Iterate through key poses and collect corresponding features. Downsample the resulting cloud.
     *
-    *  Detailed description starts here.
+    *  Use intensity field of cloudToExtract points as index for laserCloudMapContainer, and add corresponding features from laserCloudMapContainer to laserCloudFeatureFromMap, transforming as needed.
+    * @param[in] cloudToExtract: key poses to take indices from (given by extractNearby())
+    * @param[out] laserCloudFeatureFromMapDS: downsized cloud of features from key poses in map
     */
+
     void extractCloud(pcl::PointCloud<PointType>::Ptr cloudToExtract)
     {
         // cloudToExtract from cloudKeyPoses3D
@@ -1034,12 +1034,23 @@ public:
         return PointType(feature.x, feature.y, feature.z);
     }
 
+    /*! \brief For each feature point in the newest scan, add point associated with corresponding map feature to the optimization problem
+    * \param [in] laserCloudFeatureLastDS 
+    * \param [in] laserCloudFeatureLastDSNum 
+    * \param [out] featurePointNewVec
+    * \param [out] featurePointMapVec
+    * \param [out] featurePointNewMean
+    * \param [out] featurePointMapMean
+    * \param [out] rnDistsVec
+    * \param [out] rnDistsMax
+    */
+
     void featureOptimization()
     {
         updatePointAssociateToMap(); // ?? does this need to run every time this fn is called?
 
         #pragma omp parallel for num_threads(numberOfCores)
-        for (int i = 0; i < laserCloudFeatureLastDSNum; i++) // iterate through corner feature points in newest scan
+        for (int i = 0; i < laserCloudFeatureLastDSNum; i++) // iterate through feature points in newest scan
         {
             PointType featurePointNew, featurePointNewTF, featurePointMap, coeff;
             FeatureType featureNew, featureMap; // TODO: FeatureType
@@ -1259,10 +1270,24 @@ public:
         std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
     }
 
+    /*! \brief ICP step using pairs of scan/map features
+    * \details Find weighted covariance of demeaned scan and map feature points, where each weight is the maximum R^n distance between corresponding features, minus the R^n distance between the pair.
+    *   The difference between the means gives the translation and the SVD of the covariance gives the rotation. 
+    * \param [in] iterCount
+    * \param [in] featurePointNewVec
+    * \param [in] featurePointMapVec
+    * \param [in] featurePointNewMean
+    * \param [in] featurePointMapMean
+    * \param [in] rnDistsVec
+    * \param [in] rnDistsMax
+    * \param [out] transformTobeMapped
+    * \returns whether converged
+    */
+
     bool optimization(int iterCount)
     {
         int featurePairNum = featurePointNewVec.size();
-        if (featurePairNum < 50) { // ?? what should threshold be?
+        if (featurePairNum < 20) { // ?? what should threshold be?
             return false; // ?? need different escape condition? ie keep from reiterating w/o change?
         }
 
@@ -1276,13 +1301,14 @@ public:
         featurePointNewMean /= featurePairNum; //?? can you do arithmetic on points like this?
         featurePointMapMean /= featurePairNum;
 
+        // TODO: only use best x% of pairs?
         for (int i = 0; i < featurePairNum; i++) {
             // demean points
-            newTemp = featurePointNewVec[i] - featurePointNewMean;
+            newTemp = featurePointNewVec[i] - featurePointNewMean; // TODO: should use weighted mean?
             mapTemp = featurePointMapVec[i] - featurePointMapMean;
             // weighted covariance
             float weight = rnDistsMax - rnDistsVec[i];
-            cov += weight * mapTemp * newTemp.transpose();
+            cov += weight * mapTemp * newTemp.transpose(); // CHECK: that weighting this way is okay
         }
 
         cov /= featurePairNum;
@@ -1442,6 +1468,11 @@ public:
         return false; // keep optimizing
     }
 
+    /*! \brief runs ICP optimization on pairs of features from new scan and map
+    * \param [in,out] transformTobeMapped
+    * \param [out] incrementalOdometryAffineBack
+    */
+
     void scan2MapOptimization()
     {
         if (cloudKeyPoses3D->points.empty())
@@ -1549,6 +1580,8 @@ public:
 
         return value;
     }
+
+
 
 
     bool saveFrame()
