@@ -1,17 +1,20 @@
 #include "utility.h"
 
+
+pcl::PointCloud<PointType>::Ptr cloud1;
+pcl::PointCloud<PointType>::Ptr cloud2;
+mapOptimization opt;
+
+
+
 int
 test_featureOptimization()
 {
     // typedef pcl::PointXYZI PointType;
     // Test 1: simple point cloud
     // initialization
-    mapOptimization opt;
     float x = .1;
     float th = .05; // radians
-
-    pcl::PointCloud<PointType>::Ptr cloud1;
-    pcl::PointCloud<PointType>::Ptr cloud2;
 
     cloud1->points = {PointType(0., 0., 0.), 
                       PointType(0., 1., 0.), 
@@ -32,6 +35,12 @@ test_featureOptimization()
     opt.transformTobeMapped = tf;
     
     return 0;
+}
+
+int test_optimization()
+{
+    opt.optimization();
+    std::cout << tf;
 }
 
 int

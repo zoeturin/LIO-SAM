@@ -1307,7 +1307,8 @@ public:
             newTemp = featurePointNewVec[i] - featurePointNewMean; // TODO: should use weighted mean?
             mapTemp = featurePointMapVec[i] - featurePointMapMean;
             // weighted covariance
-            float weight = rnDistsMax - rnDistsVec[i];
+            // float weight = rnDistsMax - rnDistsVec[i];
+            float weight = 1; // TEMP
             cov += weight * mapTemp * newTemp.transpose(); // CHECK: that weighting this way is okay
         }
 
