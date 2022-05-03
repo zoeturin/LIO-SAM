@@ -115,6 +115,7 @@ public:
     // LOAM
     float edgeThreshold;
     float surfThreshold;
+    float detectionThreshold;
     int edgeFeatureMinValidNum;
     int surfFeatureMinValidNum;
 
@@ -227,6 +228,7 @@ public:
 
         nh.param<float>("lio_sam/edgeThreshold", edgeThreshold, 0.1);
         nh.param<float>("lio_sam/surfThreshold", surfThreshold, 0.1);
+        nh.param<float>("lio_sam/detectionThreshold", detectionThreshold, 0.1);
         nh.param<int>("lio_sam/edgeFeatureMinValidNum", edgeFeatureMinValidNum, 10);
         nh.param<int>("lio_sam/surfFeatureMinValidNum", surfFeatureMinValidNum, 100);
 

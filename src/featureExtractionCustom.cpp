@@ -25,7 +25,7 @@ public:
 
     pcl::PointCloud<PointType>::Ptr extractedCloud;
     pcl::PointCloud<FeatureType>::Ptr featureCloud; // TODO: add FeatureType
-    pcl::PointCloud<PointType>::Ptr cornerCloud;
+    // pcl::PointCloud<PointType>::Ptr cornerCloud;
     // pcl::PointCloud<PointType>::Ptr surfaceCloud;
 
     pcl::VoxelGrid<PointType> downSizeFilter;
@@ -47,7 +47,7 @@ public:
         subLaserCloudInfo = nh.subscribe<lio_sam::cloud_info>("lio_sam/deskew/cloud_info", 1, &FeatureExtraction::laserCloudInfoHandler, this, ros::TransportHints().tcpNoDelay());
 
         pubLaserCloudInfo = nh.advertise<lio_sam::cloud_info> ("lio_sam/feature/cloud_info", 1);
-        pubFeaturePoints = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/feature/cloud_corner", 1);
+        pubFeaturePoints = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/feature/cloud_feature", 1);
         // pubSurfacePoints = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/feature/cloud_surface", 1);
         
         initializationValue();
@@ -148,10 +148,12 @@ public:
         }
     }
 
+// choose points to compute features at, based on local curvature
+// upper threshold to prevent detecting noise? or filter cloud?
     void detectFeatures() // TODO: modify for custom features
     {
         //clear feature point cloud
-        cornerCloud->clear();
+        featureCloud->clear();
 
         // iterate through number of lidar channels (ie horizontal planes)
         for (int i = 0; i < N_SCAN; i++)
@@ -175,12 +177,12 @@ public:
                 {
                     int ind = cloudSmoothness[k].ind;
                     // having cloudNeighborPicked[ind] == 1 also encodes occlusion
-                    if (cloudNeighborPicked[ind] == 0 && cloudCurvature[ind] > edgeThreshold)
+                    if (cloudNeighborPicked[ind] == 0 && cloudCurvature[ind] > detectionThreshold)
                     {
                         largestPickedNum++;
                         if (largestPickedNum <= 20){
                             cloudLabel[ind] = 1;
-                            cornerCloud->push_back(extractedCloud->points[ind]);
+                            featureCloud->push_back(extractedCloud->points[ind]);
                         } else {
                             break;
                         }
@@ -208,7 +210,7 @@ public:
     
     void extractFeatures() 
     {      
-        cgf_estimation.setInputCloud(cornerCloud);
+        cgf_estimation.setInputCloud(featureCloud);
         cgf_estimation.setSearchSurface(extractedCloud);
         cgf_estimation.compute(*featureCloud);
     }
@@ -226,7 +228,7 @@ public:
         // free cloud info memory
         freeCloudInfoMemory();
         // save newly extracted features
-        cloudInfo.cloud_corner  = publishCloud(&pubFeaturePoints,  featureCloud,  cloudHeader.stamp, lidarFrame);
+        cloudInfo.cloud_feature  = publishCloud(&pubFeaturePoints,  featureCloud,  cloudHeader.stamp, lidarFrame);
         // cloudInfo.cloud_surface = publishCloud(&pubSurfacePoints, surfaceCloud, cloudHeader.stamp, lidarFrame);
         // publish to mapOptimization
         pubLaserCloudInfo.publish(cloudInfo);

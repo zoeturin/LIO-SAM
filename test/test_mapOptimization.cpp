@@ -1,11 +1,15 @@
 #include "utility.h"
 #include <assert.h> 
 
+
 pcl::PointCloud<PointType>::Ptr cloud1;
 pcl::PointCloud<PointType>::Ptr cloud2;
+float tfvec[6];
 mapOptimization opt;
 
 
+// -------------------- 3 point test ---------------------- //
+// test nearest neighbor matches in 3D space using 3 points with rotation and translation
 int
 test_featureOptimization_simple()
 {
@@ -52,6 +56,7 @@ int test_optimization()
 {
     opt.optimization();
     std::cout << opt.transformTobeMapped;
+    return 0;
 }
 
 int simple_test()
@@ -60,14 +65,40 @@ int simple_test()
     test_optimization();
 }
 
-int cloud_test(string filename)
+// -------------- ICP test ------------------ //
+// test nearest neighbor matches in 3D space using point cloud with applied rotation and translation
+
+int testFeatureOptimization(){
+    pcl::KdTreeFLANN<PointType>::Ptr kdtree1;
+    kdtree1 -> setInputCloud(cloud1);
+
+    // set mapOptimization members required for featureOptimization()
+    opt.kdtreeFeatureFromMap = kdtree1;
+    opt.laserCloudFeatureLastDS = cloud2;
+    opt.laserCloudFeatureLastDSNum = cloud2 -> size();
+    opt.transformTobeMapped = tfvec;
+
+    opt.featureOptimization();
+}
+
+int cloud_test(string filename, Eigen::Vector3f tr, Eigen::Vector3f rot)
 {
     //NEXT fix include errors
-    if (loadPCDFile<PointXYZ> (filename, *cloud) < 0)
+    if (pcl::loadPCDFile<PointXYZ> (filename, *cloud1) < 0)
     {
         std::cerr << "Failed to read test file." << std::endl;
         return (-1);
     }
+    Eigen::Transform<float, 3, Eigen::Affine> tf =
+        pcl::getTransformation(tr[0], tr[1], tr[2], rot[0], rot[1], rot[2]);
+    pcl::transformPointCloud(*cloud1, *cloud2, tf);
+    tfvec[0] = tr[0]; tfvec[1] = tr[1]; tfvec[2] = tr[2];
+    tfvec[3] = rot[0]; tfvec[4] = rot[1]; tfvec[5] = rot[2];
+    
+    testFeatureOptimization();
+    opt.optimization();
+    assert( opt.transformTobeMapped == tf ); //?
+
     // IndicesPtr indices (new Indices);
     // indices->resize (cloud->size ());
 
