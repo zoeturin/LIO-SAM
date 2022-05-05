@@ -30,6 +30,9 @@
 #include <pcl/filters/crop_box.h> 
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <pcl/features/feature.h>
+#include <pcl/features/cgf.h>
+
 #include <tf/LinearMath/Quaternion.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
@@ -56,13 +59,13 @@
 using namespace std;
 
 typedef pcl::PointXYZI PointType;
+typedef pcl::CGFSignature16 FeatureType; // TEMP
 
 enum class SensorType { VELODYNE, OUSTER, MULTISENSE };
 
 class ParamServer
 {
 public:
-
     ros::NodeHandle nh;
 
     std::string robot_id;
@@ -364,5 +367,8 @@ float pointDistance(PointType p1, PointType p2)
 {
     return sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y) + (p1.z-p2.z)*(p1.z-p2.z));
 }
+
+class FeatureExtraction : public ParamServer {};
+class MapOptimization : public ParamServer {};
 
 #endif

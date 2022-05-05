@@ -3,6 +3,9 @@
 // #include "lio_sam/cloud_info.h"
 #include "lio_sam/save_map.h"
 
+#include <pcl/features/feature.h>
+#include <pcl/features/cgf.h>
+
 #include <gtsam/geometry/Rot3.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/slam/PriorFactor.h>
@@ -47,7 +50,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIRPYT,
 
 typedef PointXYZIRPYT  PointTypePose;
 
-
+namespace lio_sam {
 class mapOptimization : public ParamServer
 {
 
@@ -1983,4 +1986,5 @@ int main(int argc, char** argv)
     visualizeMapThread.join();
 
     return 0;
+}
 }

@@ -10,7 +10,7 @@
                 "/opt/ros/noetic/include/**",
                 "~/catkin_ws/src/LIO-SAM/**",
                 "/usr/include/**",
-                "~/catkin_ws/src/pcl/**"
+                "~/code/pcl/**"
             ],
             "name": "ROS"
         }

@@ -1,9 +1,10 @@
 #include "utility.h"
+#include "lio_sam/cloud_info.h"
 #include <assert.h> 
 
 
 pcl::PointCloud<PointType>::Ptr cloud;
-FeatureExtraction feat;
+lio_sam::FeatureExtraction feat;
 
 
 // -------------------- 6 point test ---------------------- //
@@ -54,7 +55,7 @@ int simple_test(){
     // feat.featureThreshold = 
     feat.extractedCloud = *cloud;
 
-    
+
 }
 
 

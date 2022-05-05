@@ -1,9 +1,10 @@
 #include "utility.h"
 #include <assert.h> 
+#include <pcl/point_cloud.h>
 
 
-pcl::PointCloud<PointType>::Ptr cloud1;
-pcl::PointCloud<PointType>::Ptr cloud2;
+PointCloud<PointType>::Ptr cloud1;
+PointCloud<PointType>::Ptr cloud2;
 float tfvec[6];
 mapOptimization opt;
 
@@ -38,7 +39,6 @@ test_featureOptimization_simple()
     opt.transformTobeMapped = tf;
 
     opt.featureOptimization();
-    // NEXT
 
     for (int i=0; i++; i=3)
     {   
