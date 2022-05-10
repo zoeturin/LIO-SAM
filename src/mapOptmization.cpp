@@ -56,6 +56,8 @@ class mapOptimization : public ParamServer
 
 public:
 
+    pcl::KdTree<FeatureType>::PointRepresentationConstPtr featureRep;
+
     // gtsam
     NonlinearFactorGraph gtSAMgraph;
     Values initialEstimate;
@@ -86,7 +88,7 @@ public:
     std::deque<nav_msgs::Odometry> gpsQueue;
     lio_sam::cloud_info_custom cloudInfo;
 
-    vector<pcl::PointCloud<PointType>::Ptr> featureCloudKeyFrames;
+    vector<pcl::PointCloud<FeatureType>::Ptr> featureCloudKeyFrames;
     // vector<pcl::PointCloud<PointType>::Ptr> cornerCloudKeyFrames;
     // vector<pcl::PointCloud<PointType>::Ptr> surfCloudKeyFrames;
     
@@ -105,8 +107,8 @@ public:
     pcl::PointCloud<PointType>::Ptr laserCloudOri;
     pcl::PointCloud<PointType>::Ptr coeffSel;
 
-    std::vector<Eigen::Vector3f> featurePointNewVec[i]; 
-    std::vector<Eigen::Vector3f> featurePointMapVec[i];
+    std::vector<Eigen::Vector3f> featurePointNewVec; 
+    std::vector<Eigen::Vector3f> featurePointMapVec;
     Eigen::Vector3f featurePointNewMean;
     Eigen::Vector3f featurePointMapMean;
     float rnDistsMax;
@@ -119,23 +121,27 @@ public:
     // std::vector<PointType> coeffSelSurfVec;
     // std::vector<bool> laserCloudOriSurfFlag;
 
-    map<int, PointCloud<FeatureType>> laserCloudMapContainer;
+    std::vector<PointType> laserCloudOriFeatureVec; // feature point holder for parallel computation
+    std::vector<PointType> coeffSelFeatureVec;
+    std::vector<bool> laserCloudOriFeatureFlag;
+
+    map<int, pcl::PointCloud<FeatureType>> laserCloudMapContainer;
     // map<int, pair<pcl::PointCloud<PointType>, pcl::PointCloud<PointType>>> laserCloudMapContainer;
-    pcl::PointCloud<PointType>::Ptr laserCloudFeatureFromMap;
+    pcl::PointCloud<FeatureType>::Ptr laserCloudFeatureFromMap;
     // pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMap;
     // pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMap;
-    pcl::PointCloud<PointType>::Ptr laserCloudFeatureFromMapDS;
+    pcl::PointCloud<FeatureType>::Ptr laserCloudFeatureFromMapDS;
     // pcl::PointCloud<PointType>::Ptr laserCloudCornerFromMapDS;
     // pcl::PointCloud<PointType>::Ptr laserCloudSurfFromMapDS;
 
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeFeatureFromMap;
+    pcl::KdTreeFLANN<FeatureType>::Ptr kdtreeFeatureFromMap; // RN
     // pcl::KdTreeFLANN<PointType>::Ptr kdtreeCornerFromMap;
     // pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurfFromMap;
 
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses;
-    pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses;
+    pcl::KdTreeFLANN<PointType>::Ptr kdtreeSurroundingKeyPoses; //R3 (keyframe extraction from cloudKeyPoses3D)
+    pcl::KdTreeFLANN<PointType>::Ptr kdtreeHistoryKeyPoses; //R3 (keyframe extraction from copy_cloudKeyPoses3D)
 
-    pcl::VoxelGrid<PointType> downSizeFilterFeature;
+    pcl::VoxelGrid<FeatureType> downSizeFilterFeature;
     // pcl::VoxelGrid<PointType> downSizeFilterCorner;
     // pcl::VoxelGrid<PointType> downSizeFilterSurf;
     pcl::VoxelGrid<PointType> downSizeFilterICP;
@@ -200,8 +206,9 @@ public:
         pubRecentKeyFrame     = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/mapping/cloud_registered", 1);
         pubCloudRegisteredRaw = nh.advertise<sensor_msgs::PointCloud2>("lio_sam/mapping/cloud_registered_raw", 1);
 
-        downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
-        downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
+        downSizeFilterFeature.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize); // TODO set params for feature
+        // downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
+        // downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
         downSizeFilterICP.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
         downSizeFilterSurroundingKeyPoses.setLeafSize(surroundingKeyframeDensity, surroundingKeyframeDensity, surroundingKeyframeDensity); // for surrounding key poses of scan-to-map optimization
 
@@ -210,6 +217,7 @@ public:
 
     void allocateMemory()
     {
+        featureRep.reset(new pcl::DescriptorRepresentation<FeatureType>());
         cloudKeyPoses3D.reset(new pcl::PointCloud<PointType>());
         cloudKeyPoses6D.reset(new pcl::PointCloud<PointTypePose>());
         copy_cloudKeyPoses3D.reset(new pcl::PointCloud<PointType>());
@@ -218,31 +226,42 @@ public:
         kdtreeSurroundingKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
         kdtreeHistoryKeyPoses.reset(new pcl::KdTreeFLANN<PointType>());
 
-        laserCloudCornerLast.reset(new pcl::PointCloud<PointType>()); // corner feature set from odoOptimization
-        laserCloudSurfLast.reset(new pcl::PointCloud<PointType>()); // surf feature set from odoOptimization
-        laserCloudCornerLastDS.reset(new pcl::PointCloud<PointType>()); // downsampled corner featuer set from odoOptimization
-        laserCloudSurfLastDS.reset(new pcl::PointCloud<PointType>()); // downsampled surf featuer set from odoOptimization
+        // laserCloudCornerLast.reset(new pcl::PointCloud<PointType>()); // corner feature set from odoOptimization
+        // laserCloudSurfLast.reset(new pcl::PointCloud<PointType>()); // surf feature set from odoOptimization
+        // laserCloudCornerLastDS.reset(new pcl::PointCloud<PointType>()); // downsampled corner featuer set from odoOptimization
+        // laserCloudSurfLastDS.reset(new pcl::PointCloud<PointType>()); // downsampled surf featuer set from odoOptimization
 
         laserCloudOri.reset(new pcl::PointCloud<PointType>());
         coeffSel.reset(new pcl::PointCloud<PointType>());
 
-        laserCloudOriCornerVec.resize(N_SCAN * Horizon_SCAN);
-        coeffSelCornerVec.resize(N_SCAN * Horizon_SCAN);
-        laserCloudOriCornerFlag.resize(N_SCAN * Horizon_SCAN);
-        laserCloudOriSurfVec.resize(N_SCAN * Horizon_SCAN);
-        coeffSelSurfVec.resize(N_SCAN * Horizon_SCAN);
-        laserCloudOriSurfFlag.resize(N_SCAN * Horizon_SCAN);
+        // laserCloudOriCornerVec.resize(N_SCAN * Horizon_SCAN);
+        // coeffSelCornerVec.resize(N_SCAN * Horizon_SCAN);
+        // laserCloudOriCornerFlag.resize(N_SCAN * Horizon_SCAN);
+        // laserCloudOriSurfVec.resize(N_SCAN * Horizon_SCAN);
+        // coeffSelSurfVec.resize(N_SCAN * Horizon_SCAN);
+        // laserCloudOriSurfFlag.resize(N_SCAN * Horizon_SCAN);
 
-        std::fill(laserCloudOriCornerFlag.begin(), laserCloudOriCornerFlag.end(), false);
-        std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
+        laserCloudOriFeatureVec.resize(N_SCAN * Horizon_SCAN);
+        coeffSelFeatureVec.resize(N_SCAN * Horizon_SCAN);
+        laserCloudOriFeatureFlag.resize(N_SCAN * Horizon_SCAN);
 
-        laserCloudCornerFromMap.reset(new pcl::PointCloud<PointType>());
-        laserCloudSurfFromMap.reset(new pcl::PointCloud<PointType>());
-        laserCloudCornerFromMapDS.reset(new pcl::PointCloud<PointType>());
-        laserCloudSurfFromMapDS.reset(new pcl::PointCloud<PointType>());
+        // std::fill(laserCloudOriCornerFlag.begin(), laserCloudOriCornerFlag.end(), false);
+        // std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
 
-        kdtreeCornerFromMap.reset(new pcl::KdTreeFLANN<PointType>());
-        kdtreeSurfFromMap.reset(new pcl::KdTreeFLANN<PointType>());
+        std::fill(laserCloudOriFeatureFlag.begin(), laserCloudOriFeatureFlag.end(), false);
+
+        // laserCloudCornerFromMap.reset(new pcl::PointCloud<PointType>());
+        // laserCloudSurfFromMap.reset(new pcl::PointCloud<PointType>());
+        // laserCloudCornerFromMapDS.reset(new pcl::PointCloud<PointType>());
+        // laserCloudSurfFromMapDS.reset(new pcl::PointCloud<PointType>());
+
+        laserCloudFeatureFromMap.reset(new pcl::PointCloud<FeatureType>());
+        laserCloudFeatureFromMapDS.reset(new pcl::PointCloud<FeatureType>());
+
+        // kdtreeCornerFromMap.reset(new pcl::KdTreeFLANN<PointType>());
+        // kdtreeSurfFromMap.reset(new pcl::KdTreeFLANN<PointType>());
+        kdtreeFeatureFromMap.reset(new pcl::KdTreeFLANN<FeatureType>());
+        kdtreeFeatureFromMap->setPointRepresentation(featureRep);
 
         for (int i = 0; i < 6; ++i){
             transformTobeMapped[i] = 0;
@@ -301,9 +320,10 @@ public:
         po->intensity = pi->intensity;
     }
 
-    pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::Ptr cloudIn, PointTypePose* transformIn)
+    template <typename PointT>
+    typename pcl::PointCloud<PointT>::Ptr transformPointCloud(typename pcl::PointCloud<PointT>::Ptr cloudIn, PointTypePose* transformIn)
     {
-        pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointT>::Ptr cloudOut(new pcl::PointCloud<PointT>());
 
         int cloudSize = cloudIn->size();
         cloudOut->resize(cloudSize);
@@ -375,14 +395,18 @@ public:
       pcl::io::savePCDFileBinary(saveMapDirectory + "/trajectory.pcd", *cloudKeyPoses3D);
       pcl::io::savePCDFileBinary(saveMapDirectory + "/transformations.pcd", *cloudKeyPoses6D);
       // extract global point cloud map
-      pcl::PointCloud<PointType>::Ptr globalCornerCloud(new pcl::PointCloud<PointType>());
-      pcl::PointCloud<PointType>::Ptr globalCornerCloudDS(new pcl::PointCloud<PointType>());
-      pcl::PointCloud<PointType>::Ptr globalSurfCloud(new pcl::PointCloud<PointType>());
-      pcl::PointCloud<PointType>::Ptr globalSurfCloudDS(new pcl::PointCloud<PointType>());
-      pcl::PointCloud<PointType>::Ptr globalMapCloud(new pcl::PointCloud<PointType>());
+      pcl::PointCloud<FeatureType>::Ptr globalFeatureCloud(new pcl::PointCloud<FeatureType>());
+      pcl::PointCloud<FeatureType>::Ptr globalFeatureCloudDS(new pcl::PointCloud<FeatureType>());
+
+    //   pcl::PointCloud<PointType>::Ptr globalCornerCloud(new pcl::PointCloud<PointType>());
+    //   pcl::PointCloud<PointType>::Ptr globalCornerCloudDS(new pcl::PointCloud<PointType>());
+    //   pcl::PointCloud<PointType>::Ptr globalSurfCloud(new pcl::PointCloud<PointType>());
+    //   pcl::PointCloud<PointType>::Ptr globalSurfCloudDS(new pcl::PointCloud<PointType>());
+      pcl::PointCloud<FeatureType>::Ptr globalMapCloud(new pcl::PointCloud<FeatureType>());
       for (int i = 0; i < (int)cloudKeyPoses3D->size(); i++) {
-          *globalCornerCloud += *transformPointCloud(cornerCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
-          *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &cloudKeyPoses6D->points[i]);
+          *globalFeatureCloud += *transformPointCloud<FeatureType>(featureCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
+        //   *globalCornerCloud += *transformPointCloud(cornerCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
+        //   *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &cloudKeyPoses6D->points[i]);
           cout << "\r" << std::flush << "Processing feature cloud " << i << " of " << cloudKeyPoses6D->size() << " ...";
       }
 
@@ -391,33 +415,43 @@ public:
         cout << "\n\nSave resolution: " << req.resolution << endl;
 
         // down-sample and save corner cloud
-        downSizeFilterCorner.setInputCloud(globalCornerCloud);
-        downSizeFilterCorner.setLeafSize(req.resolution, req.resolution, req.resolution);
-        downSizeFilterCorner.filter(*globalCornerCloudDS);
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/CornerMap.pcd", *globalCornerCloudDS);
-        // down-sample and save surf cloud
-        downSizeFilterSurf.setInputCloud(globalSurfCloud);
-        downSizeFilterSurf.setLeafSize(req.resolution, req.resolution, req.resolution);
-        downSizeFilterSurf.filter(*globalSurfCloudDS);
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloudDS);
+        downSizeFilterFeature.setInputCloud(globalFeatureCloud);
+        downSizeFilterFeature.setLeafSize(req.resolution, req.resolution, req.resolution);
+        downSizeFilterFeature.filter(*globalFeatureCloudDS);
+        pcl::io::savePCDFileBinary(saveMapDirectory + "/FeatureMap.pcd", *globalFeatureCloudDS);
+
+        // // down-sample and save corner cloud
+        // downSizeFilterCorner.setInputCloud(globalCornerCloud);
+        // downSizeFilterCorner.setLeafSize(req.resolution, req.resolution, req.resolution);
+        // downSizeFilterCorner.filter(*globalCornerCloudDS);
+        // pcl::io::savePCDFileBinary(saveMapDirectory + "/CornerMap.pcd", *globalCornerCloudDS);
+        // // down-sample and save surf cloud
+        // downSizeFilterSurf.setInputCloud(globalSurfCloud);
+        // downSizeFilterSurf.setLeafSize(req.resolution, req.resolution, req.resolution);
+        // downSizeFilterSurf.filter(*globalSurfCloudDS);
+        // pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloudDS);
       }
       else
       {
-        // save corner cloud
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/CornerMap.pcd", *globalCornerCloud);
-        // save surf cloud
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloud);
+        // save feature cloud
+        pcl::io::savePCDFileBinary(saveMapDirectory + "/FeatureMap.pcd", *globalFeatureCloud);
+        // // save corner cloud
+        // pcl::io::savePCDFileBinary(saveMapDirectory + "/CornerMap.pcd", *globalCornerCloud);
+        // // save surf cloud
+        // pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloud);
       }
 
       // save global point cloud map
-      *globalMapCloud += *globalCornerCloud;
-      *globalMapCloud += *globalSurfCloud;
+      *globalMapCloud += *globalFeatureCloud;
+    //   *globalMapCloud += *globalCornerCloud;
+    //   *globalMapCloud += *globalSurfCloud;
 
       int ret = pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap.pcd", *globalMapCloud);
       res.success = ret == 0;
 
-      downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
-      downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
+      downSizeFilterFeature.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
+    //   downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
+    //   downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
 
       cout << "****************************************************" << endl;
       cout << "Saving map to pcd files completed\n" << endl;
@@ -455,8 +489,9 @@ public:
         pcl::KdTreeFLANN<PointType>::Ptr kdtreeGlobalMap(new pcl::KdTreeFLANN<PointType>());;
         pcl::PointCloud<PointType>::Ptr globalMapKeyPoses(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyPosesDS(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr globalMapKeyFramesTemp(new pcl::PointCloud<PointType>());
         pcl::PointCloud<PointType>::Ptr globalMapKeyFrames(new pcl::PointCloud<PointType>());
-        pcl::PointCloud<PointType>::Ptr globalMapKeyFramesDS(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr globalMapKeyFramesDS(new pcl::PointCloud<PointType>()); // only use for publishing map
 
         // kd-tree to find near key frames to visualize
         std::vector<int> pointSearchIndGlobalMap;
@@ -485,15 +520,17 @@ public:
             if (pointDistance(globalMapKeyPosesDS->points[i], cloudKeyPoses3D->back()) > globalMapVisualizationSearchRadius)
                 continue;
             int thisKeyInd = (int)globalMapKeyPosesDS->points[i].intensity;
-            *globalMapKeyFrames += *transformPointCloud(cornerCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
-            *globalMapKeyFrames += *transformPointCloud(surfCloudKeyFrames[thisKeyInd],    &cloudKeyPoses6D->points[thisKeyInd]);
+            pcl::copyPointCloud<FeatureType, PointType>(*featureCloudKeyFrames[thisKeyInd], *globalMapKeyFramesTemp);
+            *globalMapKeyFrames += *transformPointCloud<PointType>(globalMapKeyFramesTemp,  &cloudKeyPoses6D->points[thisKeyInd]);
+            // *globalMapKeyFrames += *transformPointCloud(cornerCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
+            // *globalMapKeyFrames += *transformPointCloud(surfCloudKeyFrames[thisKeyInd],    &cloudKeyPoses6D->points[thisKeyInd]);
         }
         // downsample visualized points
         pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyFrames; // for global map visualization
         downSizeFilterGlobalMapKeyFrames.setLeafSize(globalMapVisualizationLeafSize, globalMapVisualizationLeafSize, globalMapVisualizationLeafSize); // for global map visualization
         downSizeFilterGlobalMapKeyFrames.setInputCloud(globalMapKeyFrames);
         downSizeFilterGlobalMapKeyFrames.filter(*globalMapKeyFramesDS);
-        publishCloud(&pubLaserCloudSurround, globalMapKeyFramesDS, timeLaserInfoStamp, odometryFrame);
+        publishCloud(&pubLaserCloudSurround, globalMapKeyFramesDS, timeLaserInfoStamp, odometryFrame); // TODO: make this publish point clouds
     }
 
 
@@ -575,7 +612,7 @@ public:
         if (pubIcpKeyFrames.getNumSubscribers() != 0)
         {
             pcl::PointCloud<PointType>::Ptr closed_cloud(new pcl::PointCloud<PointType>());
-            pcl::transformPointCloud(*cureKeyframeCloud, *closed_cloud, icp.getFinalTransformation());
+            pcl::transformPointCloud<PointType>(*cureKeyframeCloud, *closed_cloud, icp.getFinalTransformation());
             publishCloud(&pubIcpKeyFrames, closed_cloud, timeLaserInfoStamp, odometryFrame);
         }
 
@@ -705,8 +742,11 @@ public:
             int keyNear = key + i;
             if (keyNear < 0 || keyNear >= cloudSize )
                 continue;
-            *nearKeyframes += *transformPointCloud(cornerCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]);
-            *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear],   &copy_cloudKeyPoses6D->points[keyNear]);
+            pcl::PointCloud<PointType>::Ptr keyFramesTemp(new pcl::PointCloud<PointType>());
+            pcl::copyPointCloud<FeatureType, PointType>(*featureCloudKeyFrames[keyNear], *keyFramesTemp);
+            *nearKeyframes += *transformPointCloud<PointType>(keyFramesTemp, &copy_cloudKeyPoses6D->points[keyNear]);
+            // *nearKeyframes += *transformPointCloud(cornerCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]);
+            // *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear],   &copy_cloudKeyPoses6D->points[keyNear]);
         }
 
         if (nearKeyframes->empty())
@@ -929,10 +969,10 @@ public:
             if (laserCloudMapContainer.find(thisKeyInd) != laserCloudMapContainer.end()) 
             {
                 // transformed cloud available
-                *laserCloudFeatureFromMap += laserCloudMapContainer[thisKeyInd];
+                *laserCloudFeatureFromMap += laserCloudMapContainer[thisKeyInd]; // FIX to feature type(?)
             } else {
                 // transformed cloud not available
-                pcl::PointCloud<PointType> laserCloudFeatureTemp = *transformPointCloud(featureCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
+                pcl::PointCloud<FeatureType> laserCloudFeatureTemp = *transformPointCloud<FeatureType>(featureCloudKeyFrames[thisKeyInd],  &cloudKeyPoses6D->points[thisKeyInd]);
                 *laserCloudFeatureFromMap += laserCloudFeatureTemp;
                 laserCloudMapContainer[thisKeyInd] = laserCloudFeatureTemp; // CHECK: if laserCloudMapContainer actually important now
             }
@@ -1051,22 +1091,22 @@ public:
     void featureOptimization()
     {
         updatePointAssociateToMap(); // ?? does this need to run every time this fn is called?
-
+        // TODO: switch to CorrespondenceEstimation
         #pragma omp parallel for num_threads(numberOfCores)
         for (int i = 0; i < laserCloudFeatureLastDSNum; i++) // iterate through feature points in newest scan
         {
             PointType featurePointNew, featurePointNewTF, featurePointMap, coeff;
-            FeatureType featureNew, featureMap; // TODO: FeatureType
+            FeatureType featureNew, featureMap;
             std::vector<int> mapFeatureIndex;
             std::vector<float> featureSqDistRn;
-            float mapFeatureDistR3;
+            float featureDistR3;
 
             featureNew = laserCloudFeatureLastDS->points[i]; // get point in question from newest scan
             featurePointNew = featurePoint(featureNew); // get associated point (x,y,z)
             pointAssociateToMap(&featurePointNew, &featurePointNewTF); // tf into map coordinates
 
-            kdtreeFeatureFromMap->nearestKSearch(featureNew, 1, mapFeatureIndex, featureSqDistRn); // TODO: RN search
-            featureMap = laserCloudFeatureFromMapDS->points[mapFeatureIndex];
+            kdtreeFeatureFromMap->nearestKSearch(featureNew, 1, mapFeatureIndex, featureSqDistRn); //RN search 
+            featureMap = laserCloudFeatureFromMapDS->points[mapFeatureIndex[0]];
             featurePointMap = featurePoint(featureMap);
             featureDistR3 = euclideanDistance(featurePointNewTF, featurePointMap);
                     
@@ -1074,17 +1114,18 @@ public:
                 //TODO also threshold Rn distance?
                 // CHECK threadsafe?
                 // ?? convert 4 elem to 3?
-                featurePointNewVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointNew.data); //CHECK: TF instead?
-                featurePointMapVec[i] = Eigen::Map<Eigen::Vector3f>(featurePointMap.data);
+                featurePointNewVec.push_back(Eigen::Map<Eigen::Vector3f>(featurePointNew.data)); //CHECK: TF instead?
+                featurePointMapVec.push_back(Eigen::Map<Eigen::Vector3f>(featurePointMap.data));
                 featurePointNewMean += featurePointNewVec[i];
                 featurePointMapMean += featurePointMapVec[i]; 
 
-                rnDistsVec[i] = sqrt(featureSqDistRn); 
-                if (rnDistsVec[i] > rnDistsMax) rnDistsMax = rnDistsVec[i] ;
+                rnDistsVec.push_back( sqrt(featureSqDistRn[i]) ); 
+                if (rnDistsVec.back() > rnDistsMax) rnDistsMax = rnDistsVec.back() ;
             }
         }
     }
 
+/*
     void cornerOptimization()
     {
         updatePointAssociateToMap();
@@ -1251,27 +1292,27 @@ public:
             }
         }
     }
-
-    void combineOptimizationCoeffs()
-    {
-        // combine corner coeffs
-        for (int i = 0; i < laserCloudCornerLastDSNum; ++i){
-            if (laserCloudOriCornerFlag[i] == true){
-                laserCloudOri->push_back(laserCloudOriCornerVec[i]);
-                coeffSel->push_back(coeffSelCornerVec[i]);
-            }
-        }
-        // combine surf coeffs
-        for (int i = 0; i < laserCloudSurfLastDSNum; ++i){
-            if (laserCloudOriSurfFlag[i] == true){
-                laserCloudOri->push_back(laserCloudOriSurfVec[i]);
-                coeffSel->push_back(coeffSelSurfVec[i]);
-            }
-        }
-        // reset flag for next iteration
-        std::fill(laserCloudOriCornerFlag.begin(), laserCloudOriCornerFlag.end(), false);
-        std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
-    }
+*/
+    // void combineOptimizationCoeffs()
+    // {
+    //     // combine corner coeffs
+    //     for (int i = 0; i < laserCloudCornerLastDSNum; ++i){
+    //         if (laserCloudOriCornerFlag[i] == true){
+    //             laserCloudOri->push_back(laserCloudOriCornerVec[i]);
+    //             coeffSel->push_back(coeffSelCornerVec[i]);
+    //         }
+    //     }
+    //     // combine surf coeffs
+    //     for (int i = 0; i < laserCloudSurfLastDSNum; ++i){
+    //         if (laserCloudOriSurfFlag[i] == true){
+    //             laserCloudOri->push_back(laserCloudOriSurfVec[i]);
+    //             coeffSel->push_back(coeffSelSurfVec[i]);
+    //         }
+    //     }
+    //     // reset flag for next iteration
+    //     std::fill(laserCloudOriCornerFlag.begin(), laserCloudOriCornerFlag.end(), false);
+    //     std::fill(laserCloudOriSurfFlag.begin(), laserCloudOriSurfFlag.end(), false);
+    // }
 
     /*! \brief ICP step using pairs of scan/map features
     * \details Find weighted covariance of demeaned scan and map feature points, where each weight is the maximum R^n distance between corresponding features, minus the R^n distance between the pair.
@@ -1320,10 +1361,11 @@ public:
         // TODO: see if need to check whether degenerate
         
         // Calculate transformation from covariance and means
-        Eigen::JacobiSVD<Matrix3f> svd(cov);
-        rotation = svd.matrixU * svd.matrixV.transpose(); // CHECK: that svd returns V not V transpose
-        getEulerAngles(rotation, roll, pitch, yaw);
-        translation = featurePointMapMean.array() - (rotation * featurePointNewVec).array();
+        // TODO PCL common methods here
+        Eigen::JacobiSVD<Eigen::Matrix3f> svd(cov);
+        rotation = svd.matrixU() * svd.matrixV().transpose(); // CHECK: that svd returns V not V transpose
+        pcl::getEulerAngles(rotation, roll, pitch, yaw);
+        translation = featurePointMapMean.array() - (rotation * featurePointNewMean).array();
 
         transformTobeMapped[0] += roll; // CHECK: transformation element order
         transformTobeMapped[1] += pitch;
@@ -1798,14 +1840,18 @@ public:
         transformTobeMapped[5] = latestEstimate.translation().z();
 
         // save all the received edge and surf points
-        pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
-        pcl::PointCloud<PointType>::Ptr thisSurfKeyFrame(new pcl::PointCloud<PointType>());
-        pcl::copyPointCloud(*laserCloudCornerLastDS,  *thisCornerKeyFrame);
-        pcl::copyPointCloud(*laserCloudSurfLastDS,    *thisSurfKeyFrame);
+        pcl::PointCloud<FeatureType>::Ptr thisFeatureKeyFrame(new pcl::PointCloud<FeatureType>());
+        // pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
+        // pcl::PointCloud<PointType>::Ptr thisSurfKeyFrame(new pcl::PointCloud<PointType>());
+        pcl::copyPointCloud(*laserCloudFeatureLastDS,  *thisFeatureKeyFrame);
+        // pcl::copyPointCloud<FeatureType,PointType>(*laserCloudFeatureLastDS,  *thisFeatureKeyFrame);
+        // pcl::copyPointCloud(*laserCloudCornerLastDS,  *thisCornerKeyFrame);
+        // pcl::copyPointCloud(*laserCloudSurfLastDS,    *thisSurfKeyFrame);
 
         // save key frame cloud
-        cornerCloudKeyFrames.push_back(thisCornerKeyFrame);
-        surfCloudKeyFrames.push_back(thisSurfKeyFrame);
+        featureCloudKeyFrames.push_back(thisFeatureKeyFrame);
+        // cornerCloudKeyFrames.push_back(thisCornerKeyFrame);
+        // surfCloudKeyFrames.push_back(thisSurfKeyFrame);
 
         // save path for visualization
         updatePath(thisPose6D);
@@ -1939,14 +1985,16 @@ public:
         // publish key poses
         publishCloud(&pubKeyPoses, cloudKeyPoses3D, timeLaserInfoStamp, odometryFrame);
         // Publish surrounding key frames
-        publishCloud(&pubRecentKeyFrames, laserCloudSurfFromMapDS, timeLaserInfoStamp, odometryFrame);
+        // publishCloud(&pubRecentKeyFrames, laserCloudFeatureFromMapDS, timeLaserInfoStamp, odometryFrame); // TODO: fix? 
         // publish registered key frame
         if (pubRecentKeyFrame.getNumSubscribers() != 0)
         {
             pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
             PointTypePose thisPose6D = trans2PointTypePose(transformTobeMapped);
-            *cloudOut += *transformPointCloud(laserCloudCornerLastDS,  &thisPose6D);
-            *cloudOut += *transformPointCloud(laserCloudSurfLastDS,    &thisPose6D);
+            pcl::copyPointCloud<FeatureType, PointType>(*laserCloudFeatureLastDS, *cloudOut);
+            *cloudOut = *transformPointCloud<PointType>(cloudOut,  &thisPose6D);
+            // *cloudOut += *transformPointCloud(laserCloudCornerLastDS,  &thisPose6D);
+            // *cloudOut += *transformPointCloud(laserCloudSurfLastDS,    &thisPose6D);
             publishCloud(&pubRecentKeyFrame, cloudOut, timeLaserInfoStamp, odometryFrame);
         }
         // publish registered high-res raw cloud
@@ -1955,7 +2003,7 @@ public:
             pcl::PointCloud<PointType>::Ptr cloudOut(new pcl::PointCloud<PointType>());
             pcl::fromROSMsg(cloudInfo.cloud_deskewed, *cloudOut);
             PointTypePose thisPose6D = trans2PointTypePose(transformTobeMapped);
-            *cloudOut = *transformPointCloud(cloudOut,  &thisPose6D);
+            *cloudOut = *transformPointCloud<PointType>(cloudOut,  &thisPose6D);
             publishCloud(&pubCloudRegisteredRaw, cloudOut, timeLaserInfoStamp, odometryFrame);
         }
         // publish path
